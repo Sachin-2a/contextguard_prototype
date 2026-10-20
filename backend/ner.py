@@ -1,4 +1,14 @@
 from presidio_analyzer import AnalyzerEngine
+import spacy
+
+# Ensure the spaCy model is loaded and available to Presidio
+try:
+    nlp = spacy.load("en_core_web_sm")
+except OSError:
+    # Fallback if needed during cloud build
+    import subprocess
+    subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"])
+    nlp = spacy.load("en_core_web_sm")
 
 analyzer = AnalyzerEngine()
 
