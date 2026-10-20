@@ -1,44 +1,47 @@
-# backend/policy.py
 import uuid
-from vault import save_to_vault
+from backend.vault import save_to_vault
 
 POLICY_MATRIX = {
-    "NATIONAL_ID": {"default": "Redact"},
     "PAN_CARD": {"default": "Pseudonymize"},
-    "Health Data": {"default": "Redact"},
     "HR Salary": {
-        "HR_to_Employee": "Allow", #[cite: 2]
+        "HR_to_Employee": "Allow",
         "External_API": "Redact"
-    }
+    },
+    "Health Data": {"default": "Redact"},
+    "PERSON": {"default": "Pseudonymize"}
 }
 
 def apply_policy(text: str, findings: list, context: dict):
-    # Sort in reverse to prevent offset shifting during replacements
-    findings.sort(key=lambda x: x.get("span", (0,0))[0] if "span" in x else 0, reverse=True)
+    # Sort findings in reverse to preserve string indices during updates
+    valid_findings = [f for f in findings if "span" in f or "value" in f]
+    valid_findings.sort(key=lambda x: x.get("span", (0,0))[0], reverse=True)
     
     final_text = text
     actions_taken = []
     
-    for f in findings:
-        entity_type = f["type"]
-        original_value = f["value"]
+    for f in valid_findings:
+        entity_type = f.get("type", "UNKNOWN")
+        original_value = f.get("value", "")
         
-        # Look up policy
+        if not original_value:
+            continue
+            
         rules = POLICY_MATRIX.get(entity_type, {"default": "Redact"})
-        action = rules.get(context["destination"], rules["default"])
+        destination = context.get("destination", "External_API")
+        action = rules.get(destination, rules.get("default", "Redact"))
         
         if action == "Allow":
             actions_taken.append({"entity": entity_type, "action": "Allow"})
             continue
             
         elif action == "Redact":
-            final_text = final_text.replace(original_value, f"[REDACTED {entity_type}]") #[cite: 3]
+            final_text = final_text.replace(original_value, f"[REDACTED {entity_type}]")
             actions_taken.append({"entity": entity_type, "action": "Redact"})
             
         elif action == "Pseudonymize":
-            token = f"[PERSON_{str(uuid.uuid4())[:4]}]"
+            token = f"[{entity_type}_{str(uuid.uuid4())[:4]}]"
             save_to_vault(token, original_value)
-            final_text = final_text.replace(original_value, token) #[cite: 4]
+            final_text = final_text.replace(original_value, token)
             actions_taken.append({"entity": entity_type, "action": "Pseudonymize"})
             
     return final_text, actions_taken
