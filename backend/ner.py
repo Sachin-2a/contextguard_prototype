@@ -1,19 +1,16 @@
 from presidio_analyzer import AnalyzerEngine
 import spacy
+import subprocess
 
-# Ensure the spaCy model is loaded and available to Presidio
 try:
     nlp = spacy.load("en_core_web_sm")
 except OSError:
-    # Fallback if needed during cloud build
-    import subprocess
     subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"])
     nlp = spacy.load("en_core_web_sm")
 
 analyzer = AnalyzerEngine()
 
 def detect_entities(text: str) -> list:
-    # Detects names, locations, organizations, phone numbers[cite: 4]
     results = analyzer.analyze(text=text, language='en')
     findings = []
     for r in results:
